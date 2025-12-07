@@ -13,6 +13,40 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
+type Header struct {
+	Size int32
+	APIKey int16
+	APIVersion int16
+}
+
+type APIVersion struct {
+	CorrelationID int32
+	ClientID string
+	ClientSoftwareName string
+	ClientSoftwareVersion string
+}
+
+func readAPIVersion(r io.Reader) APIVersion {
+	var version APIVersion
+	binary.Read(r, binary.BigEndian, &version.CorrelationID)
+
+	var size int16
+	binary.Read(r, binary.BigEndian, &size)
+	clientID := make([]byte, size)
+	binary.Read(r, binary.BigEndian, &clientID)
+
+	binary.Read(r, binary.BigEndian, &size)
+	clientSoftwareName := make([]byte, size)
+	binary.Read(r, binary.BigEndian, &clientSoftwareName)
+	clientSoftwareVersion, _ := io.ReadAll(r)
+
+	return APIVersion{
+		ClientID: string(clientID),
+		ClientSoftwareName: string(clientSoftwareName),
+		ClientSoftwareVersion: string(clientSoftwareVersion),
+	}
+}
+
 type Message struct {
 	data []byte
 	// ...
@@ -63,16 +97,14 @@ func (s *Server) handleConn(conn net.Conn) {
 			slog.Error("connection read error", "err", err)
 			return
 		}
-		msg := buf[:n]
-		r := bytes.NewReader(msg)
+		rawMsg := buf[:n]
+		r := bytes.NewReader(rawMsg)
+		var header Header
+		binary.Read(r, binary.BigEndian, &header)
 
-		acks := make([]byte, 2)
-		binary.Read(r, binary.LittleEndian, acks)
+		req := readAPIVersion(r)
+		fmt.Println(req)
 
-		timeoutms := binary.BigEndian.Uint32(msg[2:6])
-
-		fmt.Println("acks: ", acks)
-		fmt.Println("timeoutms: ", timeoutms)
 	}
 }
 
