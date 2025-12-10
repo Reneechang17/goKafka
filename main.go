@@ -13,6 +13,10 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
+const (
+	APIKeyAPIVersions = 18
+)
+
 type Header struct {
 	Size int32
 	APIKey int16
@@ -102,8 +106,13 @@ func (s *Server) handleConn(conn net.Conn) {
 		var header Header
 		binary.Read(r, binary.BigEndian, &header)
 
-		req := readAPIVersion(r)
-		fmt.Println(req)
+		switch header.APIKey {
+		case APIKeyAPIVersions:
+			version := readAPIVersion(r)
+			fmt.Println(version)
+		default:
+			fmt.Println("unhandled message from the client =>", header.APIKey)
+		}
 
 	}
 }
