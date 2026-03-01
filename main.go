@@ -17,6 +17,33 @@ const (
 	APIKeyAPIVersions = 18
 )
 
+type ApiVersion struct {
+	APIKey int16
+	MinVersion int16
+	MaxVersion int16
+}
+
+type ApiVersionsResponse struct {
+	ErrorCode int16
+	ApiVersions []ApiVersion
+	ThrottleTimeMs int32
+}
+
+func (avr ApiVersionsResponse) Encode(w io.Writer) error {
+	buf := &bytes.Buffer{}
+	binary.Write(buf, binary.BigEndian, int32(0))
+	binary.Write(buf, binary.BigEndian, avr.ErrorCode)
+	binary.Write(buf, binary.BigEndian, int32(len(avr.ApiVersions)))
+	for _, version := range avr.ApiVersions {
+		binary.Write(buf, binary.BigEndian, version.APIKey)
+		binary.Write(buf, binary.BigEndian, version.MinVersion)
+		binary.Write(buf, binary.BigEndian, version.MaxVersion)
+	}
+	binary.Write(buf, binary.BigEndian, avr.ThrottleTimeMs)
+	binary.BigEndian.PutUint32(buf.Bytes(), uint32(buf.Len() - 4))
+	return nil
+}
+
 type Header struct {
 	Size int32
 	APIKey int16
@@ -109,7 +136,20 @@ func (s *Server) handleConn(conn net.Conn) {
 		switch header.APIKey {
 		case APIKeyAPIVersions:
 			version := readAPIVersion(r)
-			fmt.Println(version)
+			//fmt.Println(version)
+			slog.Info("server recv msg from client", "message", version)
+			resp := ApiVersionsResponse {
+				ErrorCode: 0,
+				ApiVersions: []ApiVersion {
+					{
+						APIKey: 0,
+						MinVersion: 0,
+						MaxVersion: 0,
+					},
+				},
+				ThrottleTimeMs: 10,
+			}
+			resp.Encode(conn)
 		default:
 			fmt.Println("unhandled message from the client =>", header.APIKey)
 		}
